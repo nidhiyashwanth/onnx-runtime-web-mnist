@@ -4,18 +4,18 @@ const nextConfig = {
     webpack: (config, { isServer }) => {
         // Don't run this on the server
         if (!isServer) {
-            // ONNX Runtime Web requires these fallbacks
-            config.resolve.fallback = {
-                ...config.resolve.fallback,
-                fs: false,
-                path: false,
-                crypto: false,
-            };
-
             // Configure for WASM files
             config.module.rules.push({
                 test: /\.wasm$/,
                 type: 'asset/resource',
+            });
+
+            // Fix for Node.js modules error in onnxruntime-web
+            config.module.rules.push({
+                test: /\.m?js$/,
+                resolve: {
+                    fullySpecified: false,
+                },
             });
         }
 

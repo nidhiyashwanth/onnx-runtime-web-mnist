@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { imageToTensor, runInference } from '@/utils/onnxHelper';
+import { imageToTensor, runInference } from '@/utils/onnxRuntime';
 
 export default function DigitRecognizer() {
   const [prediction, setPrediction] = useState<number | null>(null);
@@ -203,19 +203,48 @@ export default function DigitRecognizer() {
       
       if (useDrawnImage && canvasRef.current) {
         console.log('Using drawn image for recognition');
-        // Convert canvas to a data URL
-        const canvasDataUrl = canvasRef.current.toDataURL('image/png');
-        // Create an image from the canvas data
+        // Get the canvas context
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        
+        if (ctx) {
+          // Create a smaller 28x28 canvas for the model input
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = 28;
+          tempCanvas.height = 28;
+          const tempCtx = tempCanvas.getContext('2d');
+          
+          if (tempCtx) {
+            // Fill with white background first
+            tempCtx.fillStyle = 'white';
+            tempCtx.fillRect(0, 0, 28, 28);
+            // Draw the image from the original canvas
+            tempCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, 28, 28);
+            
+            // Get the image data from the temp canvas
+            const imageData = tempCtx.getImageData(0, 0, 28, 28);
+            
+            // Convert to tensor
+            tensor = await imageToTensor(imageData);
+          } else {
+            throw new Error('Could not get temp canvas context');
+          }
+        } else {
+          throw new Error('Could not get canvas context');
+        }
+      } else {
+        console.log('Using sample image for recognition:', currentImagePath);
+        // Load the image
         const img = document.createElement('img');
         
         // Wait for the image to load
         await new Promise((resolve, reject) => {
           img.onload = resolve;
           img.onerror = reject;
-          img.src = canvasDataUrl;
+          img.src = currentImagePath;
         });
         
-        // Draw the image to a new 28x28 canvas for proper size
+        // Create a canvas to draw the image
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = 28;
         tempCanvas.height = 28;
@@ -228,18 +257,14 @@ export default function DigitRecognizer() {
           // Draw the image
           ctx.drawImage(img, 0, 0, 28, 28);
           
-          // Get the data URL from the new canvas
-          const dataUrl = tempCanvas.toDataURL('image/png');
+          // Get the image data
+          const imageData = ctx.getImageData(0, 0, 28, 28);
           
           // Convert to tensor
-          tensor = await imageToTensor(dataUrl);
+          tensor = await imageToTensor(imageData);
         } else {
           throw new Error('Could not get canvas context');
         }
-      } else {
-        console.log('Using sample image for recognition:', currentImagePath);
-        // Convert image to tensor
-        tensor = await imageToTensor(currentImagePath);
       }
       
       console.log('Image converted to tensor successfully');
